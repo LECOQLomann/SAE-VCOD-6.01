@@ -1,0 +1,144 @@
+# -*- coding: utf-8 -*-
+
+# Ce script importe les données des csv créés avec le script1 dans les tables créées script2
+# À coller dans la console si besoin : pip install cx_Oracle pandas
+
+import cx_Oracle
+import pandas as pd
+import os
+import logging
+
+# Configuration de la journalisation
+logging.basicConfig(level=logging.INFO, filename='import.log', filemode='w', format='%(name)s - %(levelname)s - %(message)s')
+
+# Informations de connexion à la base de données Oracle
+dsn_tns = cx_Oracle.makedsn('ora12c.univ-ubs.fr', '1521', sid='ORAETUD')
+connection = cx_Oracle.connect(user='E2208883', password='DUETD4056.', dsn=dsn_tns)
+
+# Chemin absolu vers le répertoire contenant vos fichiers CSV
+current_dir = os.path.dirname(os.path.abspath(__file__))
+
+# Chemins complets des fichiers CSV
+lego_sets_inventory_csv = os.path.join(current_dir, 'lego_sets_inventory.csv')
+lego_sets_csv = os.path.join(current_dir, 'lego_sets.csv')
+lego_parts_csv = os.path.join(current_dir, 'lego_parts.csv')
+
+# Connexion à la base de données et création du curseur
+with connection.cursor() as cursor:
+    print("Connexion à Oracle réussie")
+
+    # Fonction pour convertir les données
+    def convert_data(df, column_mapping, column_types):
+        for column, dtype in column_types.items():
+            if dtype == 'VARCHAR2':
+                df[column] = df[column].astype(str)
+            elif dtype == 'NUMBER':
+                df[column] = pd.to_numeric(df[column], errors='coerce')
+            elif dtype == 'NUMBER(10,2)':
+                df[column] = pd.to_numeric(df[column], errors='coerce').round(2)
+            elif dtype == 'DATE':
+                df[column] = pd.to_datetime(df[column], format='%d/%m/%Y', errors='coerce').dt.strftime('%d/%m/%Y')
+        return df
+
+    # Fonction pour importer les données d'un fichier CSV dans une table Oracle
+    def import_csv_to_oracle(csv_file, table_name, column_mapping, column_types):
+        print(f"Lecture du fichier CSV {csv_file}")
+        logging.info(f"Lecture du fichier CSV {csv_file}")
+        
+        # Lecture du fichier CSV avec pandas
+        df = pd.read_csv(csv_file, sep=';')
+        
+        # Filtrer les colonnes nécessaires
+        df = df[column_mapping.keys()]
+        
+        # Renommer les colonnes selon le mapping
+        df.rename(columns=column_mapping, inplace=True)
+        
+        # Convertir les données
+        df = convert_data(df, column_mapping, column_types)
+        
+        # Vérification des valeurs non numériques dans les colonnes numériques
+        for column, dtype in column_types.items():
+            if 'NUMBER' in dtype:
+                if df[column].isnull().any():
+                    logging.warning(f"Des valeurs non numériques ou manquantes ont été trouvées dans la colonne {column} de {csv_file}. Ces lignes seront ignorées.")
+                    df = df.dropna(subset=[column])
+        
+        # Création de la requête d'insertion
+        cols = ', '.join(column_mapping.values())
+        placeholders = ', '.join([':' + str(i+1) for i in range(len(column_mapping))])
+        insert_sql = f'INSERT INTO {table_name} ({cols}) VALUES ({placeholders})'
+
+        # Insertion des données ligne par ligne
+        inserted_count = 0
+        try:
+            for i, row in df.iterrows():
+                cursor.execute(insert_sql, tuple(row))
+                inserted_count += 1
+                print(f"Ligne {i+1} insérée dans la table {table_name}")
+            
+            # Validation des transactions
+            connection.commit()
+            logging.info(f"Les données de {csv_file} ont été insérées dans la table {table_name} avec succès. Total lignes insérées : {inserted_count}")
+        
+        except cx_Oracle.DatabaseError as e:
+            error, = e.args
+            logging.error(f"Erreur Oracle {error.code}: {error.message}")
+        
+        except Exception as e:
+            logging.error(f"Erreur lors de l'insertion des données de {csv_file} dans la table {table_name}: {str(e)}")
+
+    # Mapping des colonnes des CSV vers les colonnes des tables et types de colonnes
+    lego_sets_inventory_mapping = {
+        'set_id': 'set_id',
+        'part_id': 'part_id',
+        'quantity': 'quantity'
+    }
+
+    lego_sets_inventory_types = {
+        'set_id': 'VARCHAR2',
+        'part_id': 'NUMBER',
+        'quantity': 'NUMBER'
+    }
+
+    lego_sets_mapping = {
+        'set_id': 'set_id',
+        'Theme': 'Theme',
+        'Subtheme': 'Subtheme',
+        'Year': 'Year_',
+        'Set name': 'Set_name',
+        'Pieces': 'Pieces',
+        'RRP (USD)': 'RRP_USD',
+        'RRP (EUR)': 'RRP_EUR',
+        'Launch date': 'Launch_date',
+        'Exit date': 'Exit_date'
+    }
+
+    lego_sets_types = {
+        'set_id': 'VARCHAR2',
+        'Theme': 'VARCHAR2',
+        'Subtheme': 'VARCHAR2',
+        'Year_': 'NUMBER',
+        'Set_name': 'VARCHAR2',
+        'Pieces': 'NUMBER',
+        'RRP_USD': 'NUMBER(10,2)',
+        'RRP_EUR': 'NUMBER(10,2)',
+        'Launch_date': 'DATE',
+        'Exit_date': 'DATE'
+    }
+
+    lego_parts_price_mapping = {
+        'Part ID': 'part_id',
+        'Price': 'price'
+    }
+
+    lego_parts_price_types = {
+        'part_id': 'NUMBER',
+        'price': 'NUMBER(10,2)'
+    }
+
+    # Importation des fichiers CSV dans les tables correspondantes
+    #import_csv_to_oracle(lego_sets_inventory_csv, 'lego_sets_inventory', lego_sets_inventory_mapping, lego_sets_inventory_types)
+    #import_csv_to_oracle(lego_parts_csv, 'lego_parts_price', lego_parts_price_mapping, lego_parts_price_types)
+    import_csv_to_oracle(lego_sets_csv, 'lego_sets', lego_sets_mapping, lego_sets_types)
+# La connexion et le curseur sont automatiquement fermés lorsque le bloc with se termine

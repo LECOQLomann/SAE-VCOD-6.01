@@ -1,0 +1,78 @@
+# -*- coding: utf-8 -*-
+# Ce script permet de créer des tables dans oracles 
+
+# à coller dans la console : pip install cx_Oracle
+
+import cx_Oracle
+
+# Informations de connexion à la base de données Oracle
+dsn_tns = cx_Oracle.makedsn('ora12c.univ-ubs.fr', '1521', sid='ORAETUD')
+connection = cx_Oracle.connect(user='E2208883', password='DUETD4056.', dsn=dsn_tns)
+
+
+# Définir les instructions SQL pour créer les tables
+
+
+
+create_tables_sql = [
+    '''
+        CREATE TABLE lego_sets_inventory (
+            set_id VARCHAR2(20),
+            part_id NUMBER,
+            quantity NUMBER
+        )
+        ''',
+        '''
+        CREATE TABLE lego_sets (
+            set_id VARCHAR2(20),
+            Theme VARCHAR2(80),
+            Subtheme VARCHAR2(80),
+            Year_ NUMBER,
+            Set_name VARCHAR2(80),
+            Pieces NUMBER,
+            RRP_USD FLOAT,
+            RRP_EUR FLOAT
+        )
+        ''',
+        '''
+        CREATE TABLE lego_parts_price (
+        part_id NUMBER,
+        price NUMBER(10,2)
+    )
+    '''
+]
+
+# Connexion à la base de données
+cursor = connection.cursor()
+
+#Supprimer les tables en amont, au cas où elles existent déjà
+
+tables_to_drop = ['lego_sets_inventory', 'lego_sets', 'lego_parts_price']
+
+for table in tables_to_drop:
+    drop_table_sql = f'DROP TABLE {table} CASCADE CONSTRAINTS'
+    try:
+        cursor.execute(drop_table_sql)
+        print(f"Table '{table}' supprimée avec succès.")
+    except cx_Oracle.DatabaseError as e:
+        error, = e.args
+        if "ORA-00942" in error.message:
+            print(f"Table '{table}' n'existe pas.")
+        else:
+            print(f"Erreur lors de la suppression de la table '{table}':", error.message)
+
+# Créer les tables
+for create_table_sql in create_tables_sql:
+    try:
+        cursor.execute(create_table_sql)
+        table_name = create_table_sql.split()[2]
+        print(f"Table '{table_name}' créée avec succès.")
+    except cx_Oracle.DatabaseError as e:
+        error, = e.args
+        print(f"Erreur lors de la création de la table : {error.message}")
+
+# Fermer les ressources
+cursor.close()
+connection.close()
+
+print("Script terminé avec succès.")
