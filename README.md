@@ -139,3 +139,37 @@ ex de path = "C:\Users\e2203009\AppData\local\Programs\Python\Python313\python.e
 "path" -m pip install "nom lib"
 "path" main.py
 
+## Configuration de VS Code
+### intégration des données sur les cartes
+
+une table booster :
+- nom 
+- identifiant 
+- date d'apparition 
+- nombres de cartes
+
+récupérer tout les booster sur la page : https://pocket.limitlesstcg.com/cards
+
+
+une table cartes :
+- booster 
+- numéro du booster 
+- nom du pokémon 
+- type 
+- HP 
+- type de carte 
+- evolution("support" pour les trainers) 
+- pokemon dont est issue l'evolution 
+- talent 
+- description du talent 
+- attaque 1 
+- description attaque 1 
+- attaque 2 
+- description attaque 1 
+- faiblesse 
+- retraite 
+- rule
+
+url de récupération des données https://pocket.limitlesstcg.com/cards/A3?display=full (pour chaque booster, modifie A3 dans l'url par une varibles qui peut prendre le nom de chaque booster) ou display=text. toute les cartes d'un booster se trouve sur la même url
+ 
+
